@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TimeTrack | ระบบลงเวลางาน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green:   #00C48C;
+      --green-lt:#E6FBF5;
+      --red:     #FF5C7C;
+      --red-lt:  #FFF0F3;
+      --blue:    #3B82F6;
+      --purple:  #8B5CF6;
+      --yellow:  #F59E0B;
+      --bg:      #F0F4FF;
+      --surface: #FFFFFF;
+      --border:  #E2E8F0;
+      --text:    #1E293B;
+      --sub:     #64748B;
+      --shadow:  0 4px 24px rgba(59,130,246,0.10);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body {
+      font-family:'Mitr', sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      min-height:100dvh;
+    }
+
+    /* BLOBS */
+    .blobs { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+    .blob  { position:absolute; border-radius:50%; filter:blur(60px); opacity:0.38; animation:drift ease-in-out infinite alternate; }
+    .blob-1 { width:320px;height:320px;background:#A5F3FC;top:-80px;left:-80px;animation-duration:8s; }
+    .blob-2 { width:260px;height:260px;background:#FDE68A;top:8%;right:-60px;animation-duration:11s; }
+    .blob-3 { width:200px;height:200px;background:#DDD6FE;bottom:15%;left:-40px;animation-duration:9s; }
+    .blob-4 { width:180px;height:180px;background:#FBCFE8;bottom:-60px;right:8%;animation-duration:13s; }
+    @keyframes drift {
+      from { transform:translate(0,0) scale(1); }
+      to   { transform:translate(18px,28px) scale(1.08); }
+    }
+
+    /* SHELL */
+    .app {
+      position:relative; z-index:1;
+      max-width:430px; margin:0 auto;
+      min-height:100dvh;
+      display:flex; flex-direction:column;
+      padding:0 16px 40px;
+    }
+
+    /* HEADER */
+    header {
+      padding:22px 0 18px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .logo { display:flex; align-items:center; gap:10px; }
+    .logo-icon {
+      width:42px; height:42px; border-radius:14px;
+      background:linear-gradient(135deg,#3B82F6,#8B5CF6);
+      display:flex; align-items:center; justify-content:center;
+      font-size:22px;
+      box-shadow:0 4px 14px rgba(139,92,246,0.35);
+    }
+    .logo-text { font-size:16px; font-weight:600; color:var(--text); }
+    .logo-sub  { font-size:11px; color:var(--sub); font-weight:300; }
+
+    /* CLOCK */
+    .clock-card {
+      background:linear-gradient(135deg,#3B82F6 0%,#8B5CF6 100%);
+      border-radius:28px; padding:28px 24px 24px;
+      text-align:center; position:relative; overflow:hidden;
+      margin-bottom:18px;
+      box-shadow:0 12px 32px rgba(59,130,246,0.35);
+    }
+    .clock-card::before {
+      content:''; position:absolute; top:-40px; right:-40px;
+      width:160px; height:160px; background:rgba(255,255,255,0.12); border-radius:50%;
+    }
+    .clock-card::after {
+      content:''; position:absolute; bottom:-50px; left:-30px;
+      width:140px; height:140px; background:rgba(255,255,255,0.08); border-radius:50%;
+    }
+    .time-display {
+      font-family:'IBM Plex Mono',monospace;
+      font-size:56px; font-weight:600; color:#fff;
+      letter-spacing:-2px; line-height:1; margin-bottom:8px;
+      text-shadow:0 2px 12px rgba(0,0,0,0.2);
+    }
+    .date-display { font-size:14px; color:rgba(255,255,255,0.82); font-weight:300; }
+
+    /* USER CARD */
+    .user-card {
+      background:var(--surface);
+      border:1.5px solid var(--border);
+      border-radius:22px; padding:16px 18px;
+      display:flex; align-items:center; gap:14px;
+      margin-bottom:18px;
+      box-shadow:var(--shadow);
+    }
+    .avatar {
+      width:52px; height:52px; border-radius:16px;
+      background:linear-gradient(135deg,#FDE68A,#F59E0B);
+      display:flex; align-items:center; justify-content:center;
+      font-size:26px; flex-shrink:0;
+      box-shadow:0 4px 12px rgba(245,158,11,0.3);
+    }
+    .user-info { flex:1; }
+    .user-name { font-size:16px; font-weight:600; color:var(--text); }
+    .user-id   { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--sub); margin-top:2px; }
+    .status-badge { padding:5px 13px; border-radius:20px; font-size:12px; font-weight:500; white-space:nowrap; }
+    .status-out   { background:#F1F5F9; color:var(--sub); }
+    .status-in    { background:var(--green-lt); color:var(--green); }
+
+    /* STATS */
+    .stats-bar { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:18px; }
+    .stat-card {
+      background:var(--surface); border:1.5px solid var(--border);
+      border-radius:18px; padding:14px 10px; text-align:center;
+      box-shadow:var(--shadow);
+    }
+    .stat-num   { font-family:'IBM Plex Mono',monospace; font-size:28px; font-weight:600; line-height:1; margin-bottom:4px; }
+    .stat-label { font-size:11px; color:var(--sub); font-weight:300; }
+    .stat-in  .stat-num { color:var(--green); }
+    .stat-out .stat-num { color:var(--red); }
+    .stat-net .stat-num { color:var(--blue); }
+
+    /* ACTION BUTTONS */
+    .action-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; }
+    .action-btn {
+      border:none; border-radius:22px; padding:22px 16px; cursor:pointer;
+      font-family:'Mitr',sans-serif; font-weight:600;
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+      transition:transform 0.15s, box-shadow 0.15s;
+    }
+    .action-btn:active { transform:scale(0.95); }
+    .action-btn .btn-icon  { font-size:34px; line-height:1; }
+    .action-btn .btn-label { font-size:16px; }
+    .action-btn .btn-sub   { font-size:11px; opacity:0.75; font-weight:400; }
+    .btn-checkin  { background:linear-gradient(145deg,#00C48C,#00A37A); color:#fff; box-shadow:0 8px 24px rgba(0,196,140,0.40); }
+    .btn-checkout { background:linear-gradient(145deg,#FF5C7C,#E03060); color:#fff; box-shadow:0 8px 24px rgba(255,92,124,0.40); }
+    .action-btn:disabled { opacity:0.35; cursor:not-allowed; transform:none !important; box-shadow:none; }
+
+    /* LOGIN */
+    #loginSection { flex:1; display:flex; flex-direction:column; gap:16px; justify-content:center; padding:12px 0; }
+    .login-hero {
+      background:linear-gradient(135deg,#3B82F6,#8B5CF6);
+      border-radius:26px; padding:32px 24px;
+      text-align:center; color:#fff; margin-bottom:8px;
+      box-shadow:0 12px 32px rgba(59,130,246,0.3);
+    }
+    .login-hero .hero-icon { font-size:52px; margin-bottom:12px; }
+    .login-hero h2 { font-size:22px; font-weight:600; margin-bottom:6px; }
+    .login-hero p  { font-size:13px; opacity:0.82; font-weight:300; }
+
+    .input-group label {
+      display:block; font-size:12px; color:var(--sub);
+      margin-bottom:7px; font-weight:400; letter-spacing:0.4px;
+    }
+    .input-group input {
+      width:100%; background:var(--surface);
+      border:1.5px solid var(--border); border-radius:14px;
+      padding:14px 18px; color:var(--text);
+      font-family:'Mitr',sans-serif; font-size:15px; outline:none;
+      transition:border-color 0.2s, box-shadow 0.2s;
+      box-shadow:0 2px 8px rgba(0,0,0,0.04);
+    }
+    .input-group input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
+    .input-group input::placeholder { color:#CBD5E1; }
+    .login-btn {
+      border:none; border-radius:16px; padding:16px;
+      background:linear-gradient(135deg,#3B82F6,#8B5CF6);
+      color:#fff; font-family:'Mitr',sans-serif;
+      font-size:16px; font-weight:600; cursor:pointer;
+      box-shadow:0 8px 24px rgba(59,130,246,0.35);
+      transition:transform 0.15s;
+    }
+    .login-btn:active { transform:scale(0.97); }
+
+    /* LOG */
+    .log-section { margin-top:4px; }
+    .log-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .log-header h3 { font-size:14px; font-weight:500; color:var(--sub); }
+    .log-count {
+      font-family:'IBM Plex Mono',monospace; font-size:12px;
+      background:var(--surface); border:1px solid var(--border);
+      padding:3px 10px; border-radius:20px; color:var(--sub);
+    }
+    .log-list { display:flex; flex-direction:column; gap:8px; }
+    .log-item {
+      background:var(--surface); border:1.5px solid var(--border);
+      border-radius:16px; padding:13px 16px;
+      display:flex; align-items:center; gap:12px;
+      animation:slideIn 0.3s ease;
+      box-shadow:0 2px 8px rgba(0,0,0,0.04);
+    }
+    .log-item.type-in  { border-left:4px solid var(--green); }
+    .log-item.type-out { border-left:4px solid var(--red); }
+    @keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+    .log-info { flex:1; }
+    .log-name  { font-size:14px; font-weight:500; color:var(--text); }
+    .log-id    { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--sub); }
+    .log-right { text-align:right; }
+    .log-time  { font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--text); font-weight:600; }
+    .log-type  { font-size:11px; margin-top:2px; }
+    .log-type.in  { color:var(--green); }
+    .log-type.out { color:var(--red); }
+
+    /* MISC */
+    .logout-btn {
+      background:var(--surface); border:1.5px solid var(--border);
+      border-radius:12px; padding:7px 14px;
+      color:var(--sub); font-family:'Mitr',sans-serif;
+      font-size:12px; cursor:pointer; margin-top:8px;
+    }
+    .empty-state {
+      text-align:center; color:var(--sub); font-size:13px; padding:24px;
+      background:var(--surface); border-radius:16px;
+      border:1.5px dashed var(--border);
+    }
+    .empty-state .empty-icon { font-size:32px; margin-bottom:8px; }
+
+    /* TOAST */
+    #toast {
+      position:fixed; bottom:28px;
+      left:50%; transform:translateX(-50%) translateY(110px);
+      background:var(--surface); border:1.5px solid var(--border);
+      border-radius:18px; padding:14px 22px;
+      display:flex; align-items:center; gap:10px;
+      font-size:14px; color:var(--text);
+      max-width:340px; width:90%;
+      transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+      z-index:999; box-shadow:0 8px 32px rgba(0,0,0,0.12);
+    }
+    #toast.show { transform:translateX(-50%) translateY(0); }
+    .toast-icon { font-size:22px; flex-shrink:0; }
+
+    /* SENDING */
+    .sending-overlay {
+      position:fixed; inset:0; z-index:200;
+      background:rgba(255,255,255,0.75); backdrop-filter:blur(6px);
+      display:none; align-items:center; justify-content:center;
+      flex-direction:column; gap:16px;
+    }
+    .sending-overlay.active { display:flex; }
+    .spinner {
+      width:48px; height:48px;
+      border:3px solid #E2E8F0; border-top-color:var(--blue);
+      border-radius:50%; animation:spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .sending-text { font-size:14px; color:var(--sub); }
+
+    /* TOGGLE */
+    #mainSection  { display:none; flex-direction:column; flex:1; }
+    #loginSection { display:flex; }
+  </style>
+</head>
+<body>
+
+<div class="blobs">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+</div>
+
+<div class="sending-overlay" id="sendingOverlay">
+  <div class="spinner"></div>
+  <div class="sending-text">กำลังบันทึกข้อมูล…</div>
+</div>
+
+<div class="app">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⏰</div>
+      <div>
+        <div class="logo-text">TimeTrack</div>
+        <div class="logo-sub">ระบบลงเวลางาน</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- LOGIN -->
+  <div id="loginSection">
+    <div class="login-hero">
+      <div class="hero-icon">👋</div>
+      <h2>ยินดีต้อนรับ</h2>
+      <p>กรอกข้อมูลเพื่อเข้าสู่ระบบลงเวลา</p>
+    </div>
+    <div class="input-group">
+      <label>ชื่อ-นามสกุล</label>
+      <input id="nameInput" type="text" placeholder="เช่น สมชาย ใจดี" autocomplete="name" />
+    </div>
+    <div class="input-group">
+      <label>รหัสพนักงาน</label>
+      <input id="empIdInput" type="text" placeholder="เช่น EMP001"
+             autocomplete="off" style="font-family:'IBM Plex Mono',monospace;" />
+    </div>
+    <button class="login-btn" onclick="doLogin()">เข้าสู่ระบบ →</button>
+  </div>
+
+  <!-- MAIN -->
+  <div id="mainSection">
+
+    <div class="clock-card">
+      <div class="time-display" id="clockDisplay">00:00:00</div>
+      <div class="date-display"  id="dateDisplay"></div>
+    </div>
+
+    <div class="user-card">
+      <div class="avatar" id="userAvatar">😊</div>
+      <div class="user-info">
+        <div class="user-name" id="userName">-</div>
+        <div class="user-id"   id="userId">-</div>
+      </div>
+      <div style="text-align:right;">
+        <span class="status-badge status-out" id="statusBadge">ยังไม่ได้เข้างาน</span>
+        <br/>
+        <button class="logout-btn" onclick="doLogout()">🚪 ออกจากระบบ</button>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-card stat-in">
+        <div class="stat-num" id="statIn">0</div>
+        <div class="stat-label">เข้างาน</div>
+      </div>
+      <div class="stat-card stat-out">
+        <div class="stat-num" id="statOut">0</div>
+        <div class="stat-label">ออกงาน</div>
+      </div>
+      <div class="stat-card stat-net">
+        <div class="stat-num" id="statNet">0</div>
+        <div class="stat-label">อยู่ในออฟฟิศ</div>
+      </div>
+    </div>
+
+    <div class="action-grid">
+      <button class="action-btn btn-checkin"  onclick="submitAttendance('in')">
+        <span class="btn-icon">🟢</span>
+        <span class="btn-label">เข้างาน</span>
+        <span class="btn-sub">Check In</span>
+      </button>
+      <button class="action-btn btn-checkout" onclick="submitAttendance('out')">
+        <span class="btn-icon">🔴</span>
+        <span class="btn-label">ออกงาน</span>
+        <span class="btn-sub">Check Out</span>
+      </button>
+    </div>
+
+    <div class="log-section">
+      <div class="log-header">
+        <h3>📋 ประวัติวันนี้</h3>
+        <span class="log-count" id="logCount">0 รายการ</span>
+      </div>
+      <div class="log-list" id="logList">
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          ยังไม่มีการบันทึก
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /mainSection -->
+</div><!-- /app -->
+
+<div id="toast">
+  <span class="toast-icon" id="toastIcon">✅</span>
+  <span id="toastMsg">บันทึกสำเร็จ</span>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  ⚙️  แก้ URL ของ Google Apps Script ตรงนี้
+// ════════════════════════════════════════════
+const SCRIPT_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+// ════════════════════════════════════════════
+
+let currentUser = null;
+let logs        = [];
+let statsToday  = { in:0, out:0 };
+const AVATARS   = ['😊','😎','🦊','🐱','🐸','🦁','🐯','🦋','🌸','⭐','🎯','🚀'];
+
+/* CLOCK */
+function updateClock() {
+  const now = new Date();
+  const p = n => String(n).padStart(2,'0');
+  document.getElementById('clockDisplay').textContent =
+    `${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
+  const days   = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  document.getElementById('dateDisplay').textContent =
+    `วัน${days[now.getDay()]}ที่ ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()+543}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* LOGIN */
+function doLogin() {
+  const name  = document.getElementById('nameInput').value.trim();
+  const empId = document.getElementById('empIdInput').value.trim().toUpperCase();
+  if (!name)  { showToast('⚠️','กรุณากรอกชื่อ-นามสกุล'); return; }
+  if (!empId) { showToast('⚠️','กรุณากรอกรหัสพนักงาน');  return; }
+  currentUser = { name, empId, avatar: AVATARS[Math.floor(Math.random()*AVATARS.length)] };
+  document.getElementById('userName').textContent   = name;
+  document.getElementById('userId').textContent     = empId;
+  document.getElementById('userAvatar').textContent = currentUser.avatar;
+  document.getElementById('loginSection').style.display = 'none';
+  document.getElementById('mainSection').style.display  = 'flex';
+  fetchTodayStats();
+}
+
+function doLogout() {
+  currentUser = null; logs = []; statsToday = { in:0, out:0 };
+  document.getElementById('mainSection').style.display  = 'none';
+  document.getElementById('loginSection').style.display = 'flex';
+  document.getElementById('statusBadge').textContent = 'ยังไม่ได้เข้างาน';
+  document.getElementById('statusBadge').className   = 'status-badge status-out';
+  document.getElementById('nameInput').value  = '';
+  document.getElementById('empIdInput').value = '';
+  renderLogs();
+}
+
+/* SUBMIT */
+async function submitAttendance(type) {
+  if (!currentUser) return;
+  if (!SCRIPT_URL || SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+    showToast('⚙️','กรุณาแก้ SCRIPT_URL ใน HTML ก่อนใช้งาน');
+    return;
+  }
+  const now = new Date();
+  const p = n => String(n).padStart(2,'0');
+  const dateStr = `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}`;
+  const timeStr = `${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
+  const payload = { name:currentUser.name, empId:currentUser.empId, type, date:dateStr, time:timeStr, timestamp:now.toISOString() };
+
+  document.getElementById('sendingOverlay').classList.add('active');
+  try {
+    await fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    addLog(payload);
+    if (type === 'in') {
+      statsToday.in++;
+      document.getElementById('statusBadge').textContent = '✓ เข้างานแล้ว';
+      document.getElementById('statusBadge').className   = 'status-badge status-in';
+      showToast('🟢',`บันทึกเข้างาน ${timeStr} เรียบร้อย!`);
+    } else {
+      statsToday.out++;
+      document.getElementById('statusBadge').textContent = 'ออกงานแล้ว';
+      document.getElementById('statusBadge').className   = 'status-badge status-out';
+      showToast('🔴',`บันทึกออกงาน ${timeStr} เรียบร้อย!`);
+    }
+    updateStats();
+  } catch(err) {
+    showToast('❌','เกิดข้อผิดพลาด กรุณาลองใหม่');
+  } finally {
+    document.getElementById('sendingOverlay').classList.remove('active');
+  }
+}
+
+/* STATS */
+async function fetchTodayStats() {
+  if (!SCRIPT_URL || SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return;
+  try {
+    const now = new Date();
+    const p = n => String(n).padStart(2,'0');
+    const dateStr = `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}`;
+    const res  = await fetch(`${SCRIPT_URL}?action=getStats&date=${dateStr}`);
+    const data = await res.json();
+    if (data) { statsToday.in = data.checkIn||0; statsToday.out = data.checkOut||0; updateStats(); }
+  } catch(e) {}
+}
+function updateStats() {
+  document.getElementById('statIn').textContent  = statsToday.in;
+  document.getElementById('statOut').textContent = statsToday.out;
+  document.getElementById('statNet').textContent = Math.max(0, statsToday.in - statsToday.out);
+}
+
+/* LOG */
+function addLog(e) { logs.unshift(e); renderLogs(); }
+function renderLogs() {
+  const list = document.getElementById('logList');
+  document.getElementById('logCount').textContent = `${logs.length} รายการ`;
+  if (!logs.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div>ยังไม่มีการบันทึก</div>`;
+    return;
+  }
+  list.innerHTML = logs.map(l => `
+    <div class="log-item type-${l.type}">
+      <div class="log-info">
+        <div class="log-name">${l.name}</div>
+        <div class="log-id">${l.empId}</div>
+      </div>
+      <div class="log-right">
+        <div class="log-time">${l.time}</div>
+        <div class="log-type ${l.type}">${l.type==='in'?'▲ เข้างาน':'▼ ออกงาน'}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* TOAST */
+let toastTimer;
+function showToast(icon, msg) {
+  clearTimeout(toastTimer);
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastMsg').textContent  = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+</script>
+</body>
+</html>
